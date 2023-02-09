@@ -1,0 +1,42 @@
+name: Cross Compile for Mac on Linux
+
+on: [push]
+
+env:
+  OSXCROSS_SDK: "/usr/local/osxcross/target/SDK/MacOSX10.14.sdk"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup osxcross
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libcurl4-openssl-dev libssl-dev wget tar
+        wget https://github.com/tpoechtrager/osxcross/releases/download/2022.12.0/osxcross-2022.12.0.tar.gz
+        tar xvf osxcross-2022.12.0.tar.gz
+        sudo mv osxcross /usr/local/
+
+    - name: Setup Rust
+      run: |
+        export PATH="/usr/local/osxcross/bin:$PATH"
+        rustup target add x86_64-apple-darwin
+
+    - name: Compile for Mac
+      run: |
+        export PATH="/usr/local/osxcross/bin:$PATH"
+        export CC=o64-clang
+        export CFLAGS="-mmacosx-version-min=10.14"
+        export CXX=o64-clang++
+        export CXXFLAGS="-mmacosx-version-min=10.14"
+        cargo build --release --target x86_64-apple-darwin
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        path: target/x86_64-apple-darwin/release
+        name: release
