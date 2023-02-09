@@ -24,17 +24,20 @@ jobs:
         cargo build --release --target x86_64-unknown-linux-gnu
         cp target/x86_64-unknown-linux-gnu/release/rust-mimesorter ./rust-mimesorter-linux-x86_64
 
-    - name: Build for macOS x86-64
-      run: |
-        rustup target add x86_64-apple-darwin
-        cargo build --release --target x86_64-apple-darwin
-        cp target/x86_64-apple-darwin/release/rust-mimesorter ./rust-mimesorter-macos-x86_64
-
-    - name: Build for macOS ARM-64
-      run: |
-        rustup target add aarch64-apple-darwin
-        cargo build --release --target aarch64-apple-darwin
-        cp target/aarch64-apple-darwin/release/rust-mimesorter ./rust-mimesorter-macos-arm64
+# even tho Rust is amazing and can cross-compile, you need MacOS tools
+# or non-trivial extra steps .... (coming soon ...?)
+#
+#    - name: Build for macOS x86-64
+#      run: |
+#        rustup target add x86_64-apple-darwin
+#        cargo build --release --target x86_64-apple-darwin
+#        cp target/x86_64-apple-darwin/release/rust-mimesorter ./rust-mimesorter-macos-x86_64
+#
+#    - name: Build for macOS ARM-64
+#      run: |
+#        rustup target add aarch64-apple-darwin
+#        cargo build --release --target aarch64-apple-darwin
+#        cp target/aarch64-apple-darwin/release/rust-mimesorter ./rust-mimesorter-macos-arm64
 
     - name: Upload binaries
       uses: actions/upload-artifact@v2
@@ -42,6 +45,5 @@ jobs:
         name: Binaries
         path: |
           rust-mimesorter-linux-x86_64
-          rust-mimesorter-macos-x86_64
-          rust-mimesorter-macos-arm64
-
+#          rust-mimesorter-macos-x86_64
+#          rust-mimesorter-macos-arm64
