@@ -43,10 +43,14 @@ fn main() {
         let type_directory = mime_type.replace("/", "_");
         let type_directory = Path::new(&type_directory);
         if !type_directory.exists() {
-            match fs::create_dir(type_directory) {
-                Ok(_) => println!("[+] making directory '{}'", type_directory.display()),
-                Err(error) => println!("Error creating directory: {}", error),
-            }
+           if do_work {
+                match fs::create_dir(type_directory) {
+                    Ok(_) => println!("[+] making directory '{}'", type_directory.display()),
+                    Err(error) => println!("Error creating directory: {}", error),
+                }
+            } else {
+                println!("[-] skipping make directory '{}'", type_directory.display())
+           }
         }
 
         if mime_type != "inode/directory" {
