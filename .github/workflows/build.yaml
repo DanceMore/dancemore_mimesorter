@@ -41,7 +41,7 @@ jobs:
       with:
         files: |
           changelog.txt
-	  rust-mimesorter-linux-x86_64
+          rust-mimesorter-linux-x86_64
         body_path: changelog.txt
         tag_name: ${{ env.tag }}
         token: ${{ secrets.GITHUB_TOKEN }}
