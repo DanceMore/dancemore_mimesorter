@@ -7,10 +7,14 @@ fn main() {
     let current_dir = Path::new(".");
     let do_work = env::args().any(|arg| arg == "--do-work");
 
+    if !do_work {
+      println!("[!] dry-run by default, pass --do-work to organize files by mime type");
+    }
+
     let entries = match fs::read_dir(current_dir) {
         Ok(entries) => entries,
         Err(error) => {
-            println!("Error reading directory: {}", error);
+            println!("[!] Error reading directory: {}", error);
             return;
         }
     };
@@ -19,7 +23,7 @@ fn main() {
         let entry = match entry {
             Ok(entry) => entry,
             Err(error) => {
-                println!("Error processing entry: {}", error);
+                println!("[!] Error processing entry: {}", error);
                 continue;
             }
         };
@@ -27,7 +31,15 @@ fn main() {
         let path = entry.path();
         let file_name = path.file_name().unwrap().to_str().unwrap();
 
-        if file_name == "." || file_name == ".." || file_name == "cleaner.rb" {
+        if file_name == "." || file_name == ".." {
+            continue;
+        }
+
+       // don't process directories.
+       // they are Named already (and thus semi sorted)
+       // we are sorting files only.
+       if entry.file_type().unwrap().is_dir() {
+            println!("[-] skipping directory: {}", path.display());
             continue;
         }
 
