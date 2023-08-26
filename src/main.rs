@@ -53,7 +53,8 @@ fn main() {
            }
         }
 
-        if mime_type != "inode/directory" {
+        // it should be getting string fixed inside guess_mime_type()
+        if mime_type != "inode_directory" {
             let destination = type_directory.join(file_name);
             if do_work {
                 match fs::rename(&path, &destination) {
