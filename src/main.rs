@@ -1,14 +1,44 @@
 use std::fs;
 use std::process::Command;
 use std::path::Path;
-use std::env;
+
+use clap::Parser;
+use clap::CommandFactory;
+
+#[derive(Parser, Debug)]
+#[command(name = "mimesorter", author, version, about = "sort your files by MIME type", long_about = None)]
+struct Cli {
+    #[clap(long)]
+    dry_run: bool,
+
+    #[clap(long)]
+    do_work: bool,
+}
+
 
 fn main() {
-    let current_dir = Path::new(".");
-    let do_work = env::args().any(|arg| arg == "--do-work");
+    let cli = Cli::parse();
 
-    if !do_work {
-      println!("[!] dry-run by default, pass --do-work to organize files by mime type");
+    let current_dir = Path::new(".");
+    let do_work = cli.do_work;
+    let dry_run = cli.dry_run;
+
+    // by default, print help
+    if !dry_run && !do_work {
+	    let mut cmd = Cli::command();
+	    let _ = cmd.print_help();
+	    return
+    }
+
+    if dry_run && do_work {
+	    eprintln!("those arguments are mutually exclusive and I think you knew that.\n");
+	    let mut cmd = Cli::command();
+	    let _ = cmd.print_help();
+	    return
+    }
+
+    if dry_run {
+      println!("[!] dry-run in progress, pass --do-work to organize files based on this preview");
     }
 
     let entries = match fs::read_dir(current_dir) {
@@ -51,7 +81,7 @@ fn main() {
             }
         };
 
-	// let, let seems.... incorrect?
+        // let, let seems.... incorrect?
         let type_directory = mime_type.replace("/", "_");
         let type_directory = Path::new(&type_directory);
         if !type_directory.exists() {
