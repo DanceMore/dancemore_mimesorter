@@ -1,9 +1,9 @@
 use std::fs;
-use std::process::Command;
 use std::path::Path;
+use std::process::Command;
 
-use clap::Parser;
 use clap::CommandFactory;
+use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(name = "mimesorter", author, version, about = "sort your files by MIME type", long_about = None)]
@@ -15,7 +15,6 @@ struct Cli {
     do_work: bool,
 }
 
-
 fn main() {
     let cli = Cli::parse();
 
@@ -25,20 +24,20 @@ fn main() {
 
     // by default, print help
     if !dry_run && !do_work {
-	    let mut cmd = Cli::command();
-	    let _ = cmd.print_help();
-	    return
+        let mut cmd = Cli::command();
+        let _ = cmd.print_help();
+        return;
     }
 
     if dry_run && do_work {
-	    eprintln!("those arguments are mutually exclusive and I think you knew that.\n");
-	    let mut cmd = Cli::command();
-	    let _ = cmd.print_help();
-	    return
+        eprintln!("those arguments are mutually exclusive and I think you knew that.\n");
+        let mut cmd = Cli::command();
+        let _ = cmd.print_help();
+        return;
     }
 
     if dry_run {
-      println!("[!] dry-run in progress, pass --do-work to organize files based on this preview");
+        println!("[!] dry-run in progress, pass --do-work to organize files based on this preview");
     }
 
     let entries = match fs::read_dir(current_dir) {
@@ -65,10 +64,10 @@ fn main() {
             continue;
         }
 
-       // don't process directories.
-       // they are Named already (and thus semi sorted)
-       // we are sorting files only.
-       if entry.file_type().unwrap().is_dir() {
+        // don't process directories.
+        // they are Named already (and thus semi sorted)
+        // we are sorting files only.
+        if entry.file_type().unwrap().is_dir() {
             println!("[-] skipping directory: {}", path.display());
             continue;
         }
@@ -85,14 +84,14 @@ fn main() {
         let type_directory = mime_type.replace("/", "_");
         let type_directory = Path::new(&type_directory);
         if !type_directory.exists() {
-           if do_work {
+            if do_work {
                 match fs::create_dir(type_directory) {
                     Ok(_) => println!("[+] making directory '{}'", type_directory.display()),
                     Err(error) => println!("Error creating directory: {}", error),
                 }
             } else {
                 println!("[-] skipping make directory '{}'", type_directory.display())
-           }
+            }
         }
 
         // it should be getting string fixed inside guess_mime_type()
@@ -104,7 +103,11 @@ fn main() {
                     Err(error) => println!("Error moving file: {}", error),
                 }
             } else {
-                println!("[ ] not moving {} => {}", path.display(), destination.display());
+                println!(
+                    "[ ] not moving {} => {}",
+                    path.display(),
+                    destination.display()
+                );
             }
         }
     }
@@ -121,13 +124,15 @@ fn guess_mime_type(path: &Path) -> Result<String, String> {
         });
 
     if !output.status.success() {
-        return Err(format!("`file` command exited with error code: {}", output.status));
+        return Err(format!(
+            "`file` command exited with error code: {}",
+            output.status
+        ));
     }
 
-    let mime_type = String::from_utf8(output.stdout)
-        .unwrap_or_else(|error| {
-            panic!("Failed to parse `file` output as UTF-8: {}", error);
-        });
+    let mime_type = String::from_utf8(output.stdout).unwrap_or_else(|error| {
+        panic!("Failed to parse `file` output as UTF-8: {}", error);
+    });
 
     Ok(mime_type.trim().replace("/", "_"))
 }
