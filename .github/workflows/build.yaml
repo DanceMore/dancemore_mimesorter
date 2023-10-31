@@ -31,7 +31,7 @@ jobs:
       run: |
         rustup target add x86_64-unknown-linux-gnu
         cargo build --release --target x86_64-unknown-linux-gnu
-        cp target/x86_64-unknown-linux-gnu/release/rust-mimesorter ./rust-mimesorter-linux-x86_64
+        cp target/x86_64-unknown-linux-gnu/release/mimesorter ./mimesorter-linux-x86_64
 
     - name: Generate Changelog
       run: echo "# Release Notes" > changelog.txt  # Replace this with your actual changelog content
@@ -41,7 +41,7 @@ jobs:
       with:
         files: |
           changelog.txt
-          rust-mimesorter-linux-x86_64
+          mimesorter-linux-x86_64
         body_path: changelog.txt
         tag_name: ${{ env.tag }}
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -68,7 +68,7 @@ jobs:
       run: |
         rustup target add x86_64-apple-darwin
         cargo build --release --target x86_64-apple-darwin
-        cp target/x86_64-apple-darwin/release/rust-mimesorter ./rust-mimesorter-macos
+        cp target/x86_64-apple-darwin/release/mimesorter ./mimesorter-macos
 
     - name: Generate Changelog
       run: echo "# Release Notes" > changelog.txt  # Replace this with your actual changelog content
@@ -78,7 +78,7 @@ jobs:
       with:
         files: |
           changelog.txt
-          rust-mimesorter-macos
+          mimesorter-macos
         body_path: changelog.txt
         tag_name: ${{ env.tag }}
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -106,7 +106,7 @@ jobs:
       run: |
         cargo build --release --target x86_64-pc-windows-msvc
         ls target/x86_64-pc-windows-msvc/release/
-        cp target/x86_64-pc-windows-msvc/release/rust-mimesorter.exe ./rust-mimesorter-windows-x86_64.exe
+        cp target/x86_64-pc-windows-msvc/release/mimesorter.exe ./mimesorter-windows-x86_64.exe
 
     - name: Generate Changelog
       run: echo "# Release Notes" > changelog.txt  # Replace this with your actual changelog content
@@ -116,7 +116,7 @@ jobs:
       with:
         files: |
           changelog.txt
-          rust-mimesorter-windows-x86_64.exe
+          mimesorter-windows-x86_64.exe
         body_path: changelog.txt
         tag_name: ${{ env.tag }}
         token: ${{ secrets.GITHUB_TOKEN }}
