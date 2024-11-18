@@ -5,6 +5,7 @@ use std::process::Command;
 use clap::CommandFactory;
 use clap::Parser;
 use colored::*;
+use glob::{glob_with, MatchOptions};
 
 #[derive(Parser, Debug)]
 #[command(name = "mimesorter", author, version, about = "sort your files by MIME type", long_about = None)]
@@ -41,6 +42,25 @@ fn main() {
         println!("{}", "[!] dry-run in progress, pass --do-work to organize files based on this preview".yellow());
     }
 
+    // List of excluded files and patterns
+    let excluded_patterns: Vec<&str> = vec![
+        ".DS_Store", "._*",  // macOS
+        "Thumbs.db", "desktop.ini", "$RECYCLE.BIN",  // Windows
+        ".directory", ".hidden", ".Trash-*",  // Linux
+        "*.swp", "*~",  // Vim/Emacs swap files
+        ".lock",  // Lock files
+        ".git", ".svn", ".hg", ".bzr",  // Version control directories
+        ".idea",  // IntelliJ IDEA project configuration
+        ".vscode"  // Visual Studio Code settings
+    ];
+
+    // Create MatchOptions to ignore case and allow hidden files
+    let match_options = MatchOptions {
+        case_sensitive: false,
+        require_literal_separator: false,
+        require_literal_leading_dot: false,
+    };
+
     let entries = match fs::read_dir(current_dir) {
         Ok(entries) => entries,
         Err(error) => {
@@ -60,6 +80,17 @@ fn main() {
 
         let path = entry.path();
         let file_name = path.file_name().unwrap().to_str().unwrap();
+
+        // Check if the file name matches any excluded pattern
+        let is_excluded = excluded_patterns.iter().any(|pattern| {
+            glob_with(&format!("./{}", pattern), match_options.clone())
+                .map_or(false, |mut iter| iter.any(|g| g.unwrap() == path))
+        });
+
+        if is_excluded {
+            println!("{} {}", "[-] skipping excluded file:".red(), file_name);
+            continue;
+        }
 
         if file_name == "." || file_name == ".." {
             continue;
