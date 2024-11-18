@@ -69,6 +69,9 @@ fn main() {
         }
     };
 
+// TODO: this probably needs to create some kind of Data Structure to store
+// (filename, mime_type) so that we can properly exclude files and not make
+// directories for application_octet-stream/ whenever we see .DS_Store
     for entry in entries {
         let entry = match entry {
             Ok(entry) => entry,
@@ -117,6 +120,8 @@ fn main() {
         let type_directory = Path::new(&type_directory);
         if !type_directory.exists() {
             if do_work {
+// TODO: this needs to be extracted away from the Per File Loop in order
+// to not create extra directories
                 match fs::create_dir(type_directory) {
                     Ok(_) => println!("{} {}", "[+] making directory '{}'".green(), type_directory.display()),
                     Err(error) => println!("{} {}", "Error creating directory:".red(), error),
