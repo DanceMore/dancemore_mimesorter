@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use clap::CommandFactory;
@@ -26,35 +25,15 @@ fn main() {
     let do_work = cli.do_work;
     let dry_run = cli.dry_run;
 
-    // by default, print help
-    if !dry_run && !do_work {
-        let mut cmd = Cli::command();
-        let _ = cmd.print_help();
-        return;
-    }
-
-    if dry_run && do_work {
-        eprintln!("{}", "those arguments are mutually exclusive and I think you knew that.\n".red());
-        let mut cmd = Cli::command();
-        let _ = cmd.print_help();
-        return;
-    }
+    // Handle mutually exclusive flags and default help
+    handle_arguments(dry_run, do_work);
 
     if dry_run {
         println!("{}", "[!] dry-run in progress, pass --do-work to organize files based on this preview".yellow());
     }
 
     // List of excluded files and patterns
-    let excluded_patterns: Vec<&str> = vec![
-        ".DS_Store", "._*",  // macOS
-        "Thumbs.db", "desktop.ini", "$RECYCLE.BIN",  // Windows
-        ".directory", ".hidden", ".Trash-*",  // Linux
-        "*.swp", "*~",  // Vim/Emacs swap files
-        ".lock",  // Lock files
-        ".git", ".svn", ".hg", ".bzr",  // Version control directories
-        ".idea",  // IntelliJ IDEA project configuration
-        ".vscode"  // Visual Studio Code settings
-    ];
+    let excluded_patterns = get_excluded_patterns();
 
     // Create MatchOptions to ignore case and allow hidden files
     let match_options = MatchOptions {
@@ -63,69 +42,102 @@ fn main() {
         require_literal_leading_dot: false,
     };
 
-    let entries = match fs::read_dir(current_dir) {
-        Ok(entries) => entries,
-        Err(error) => {
-            println!("{} {}", "[!] Error reading directory:".red(), error);
-            return;
-        }
-    };
+    let entries = read_directory(current_dir);
 
     // HashMap to store files by MIME type
     let mut files_by_mime_type: HashMap<String, Vec<PathBuf>> = HashMap::new();
 
+    // Process each entry in the directory
     for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) => {
-                println!("{} {}", "[!] Error processing entry:".red(), error);
-                continue;
-            }
-        };
-
-        let path = entry.path();
-        let file_name = path.file_name().unwrap().to_str().unwrap();
-
-        // Check if the file name matches any excluded pattern
-        let is_excluded = excluded_patterns.iter().any(|pattern| {
-            glob_with(&format!("./{}", pattern), match_options.clone())
-                .map_or(false, |mut iter| iter.any(|g| g.unwrap() == path))
-        });
-
-        if is_excluded {
-            println!("{} {}", "[-] skipping excluded file:".red(), file_name);
-            continue;
-        }
-
-        if file_name == "." || file_name == ".." {
-            continue;
-        }
-
-        // don't process directories.
-        // they are Named already (and thus semi sorted)
-        // we are sorting files only.
-        if entry.file_type().unwrap().is_dir() {
-            println!("{} {}", "[-] skipping directory:".red(), path.display());
-            continue;
-        }
-
-        let mime_type = match guess_mime_type(&path) {
-            Ok(mime_type) => mime_type,
-            Err(error) => {
-                println!("{} {}", "Error guessing MIME type:".red(), error);
-                continue;
-            }
-        };
-
-        // Collect files by their MIME type
-        if mime_type != "inode_directory" {
-            let files = files_by_mime_type.entry(mime_type).or_insert_with(Vec::new);
-            files.push(path);
+        match process_entry(entry, &excluded_patterns, &match_options) {
+            Some((mime_type, path)) => {
+                if mime_type != "inode_directory" {
+                    let files = files_by_mime_type.entry(mime_type).or_insert_with(Vec::new);
+                    files.push(path);
+                }
+            },
+            None => continue,
         }
     }
 
-    // Create directories and move files based on collected data
-    for (mime_type, paths) in &files_by_mime_type {
+    // Organize files based on collected data
+    organize_files(&files_by_mime_type, do_work, dry_run);
+}
+
+fn handle_arguments(dry_run: bool, do_work: bool) {
+    if !dry_run && !do_work {
+        let mut cmd = Cli::command();
+        let _ = cmd.print_help();
+        std::process::exit(0);
+    }
+
+    if dry_run && do_work {
+        eprintln!("{}", "those arguments are mutually exclusive and I think you knew that.\n".red());
+        let mut cmd = Cli::command();
+        let _ = cmd.print_help();
+        std::process::exit(1);
+    }
+}
+
+fn get_excluded_patterns() -> Vec<&'static str> {
+    vec![
+        ".DS_Store", "._*",  // macOS
+        "Thumbs.db", "desktop.ini", "$RECYCLE.BIN",  // Windows
+        ".directory", ".hidden", ".Trash-*",  // Linux
+        "*.swp", "*~",  // Vim/Emacs swap files
+        ".lock",  // Lock files
+        ".git", ".svn", ".hg", ".bzr",  // Version control directories
+        ".idea",  // IntelliJ IDEA project configuration
+        ".vscode"  // Visual Studio Code settings
+    ]
+}
+
+fn read_directory(dir: &Path) -> Vec<fs::DirEntry> {
+    match fs::read_dir(dir) {
+        Ok(entries) => entries.filter_map(Result::ok).collect(),
+        Err(error) => {
+            println!("{} {}", "[!] Error reading directory:".red(), error);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn process_entry(entry: fs::DirEntry, excluded_patterns: &[&str], match_options: &MatchOptions) -> Option<(String, PathBuf)> {
+    let path = entry.path();
+    let file_name = path.file_name().and_then(|name| name.to_str())?;
+
+    // Check if the file name matches any excluded pattern
+    if is_excluded(&path, excluded_patterns, match_options) {
+        println!("{} {}", "[-] skipping excluded file:".red(), file_name);
+        return None;
+    }
+
+    if entry.file_type().map_or(false, |ft| ft.is_dir()) {
+        println!("{} {}", "[-] skipping directory:".red(), path.display());
+        return None;
+    }
+
+    let mime_type = guess_mime_type(&path).unwrap_or_else(|error| {
+        println!("{} {}", "Error guessing MIME type:".red(), error);
+        String::new()
+    });
+
+    if mime_type.is_empty() {
+        return None;
+    }
+
+    Some((mime_type, path))
+}
+
+fn is_excluded(path: &Path, excluded_patterns: &[&str], match_options: &MatchOptions) -> bool {
+    excluded_patterns.iter().any(|pattern| {
+        glob_with(&format!("./{}", pattern), match_options.clone())
+            .map_or(false, |mut iter| iter.any(|g| g.unwrap() == path))
+    })
+}
+
+fn organize_files(files_by_mime_type: &HashMap<String, Vec<PathBuf>>, do_work: bool, dry_run: bool) {
+    for (mime_type, paths) in files_by_mime_type {
         let type_directory = mime_type.replace("/", "_");
         let type_directory_path = Path::new(&type_directory);
 
