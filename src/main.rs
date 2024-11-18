@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 
 use clap::CommandFactory;
@@ -69,9 +71,9 @@ fn main() {
         }
     };
 
-// TODO: this probably needs to create some kind of Data Structure to store
-// (filename, mime_type) so that we can properly exclude files and not make
-// directories for application_octet-stream/ whenever we see .DS_Store
+    // HashMap to store files by MIME type
+    let mut files_by_mime_type: HashMap<String, Vec<PathBuf>> = HashMap::new();
+
     for entry in entries {
         let entry = match entry {
             Ok(entry) => entry,
@@ -115,31 +117,37 @@ fn main() {
             }
         };
 
-        // let, let seems.... incorrect?
+        // Collect files by their MIME type
+        if mime_type != "inode_directory" {
+            let files = files_by_mime_type.entry(mime_type).or_insert_with(Vec::new);
+            files.push(path);
+        }
+    }
+
+    // Create directories and move files based on collected data
+    for (mime_type, paths) in &files_by_mime_type {
         let type_directory = mime_type.replace("/", "_");
-        let type_directory = Path::new(&type_directory);
-        if !type_directory.exists() {
-            if do_work {
-// TODO: this needs to be extracted away from the Per File Loop in order
-// to not create extra directories
-                match fs::create_dir(type_directory) {
-                    Ok(_) => println!("{} {}", "[+] making directory '{}'".green(), type_directory.display()),
-                    Err(error) => println!("{} {}", "Error creating directory:".red(), error),
-                }
-            } else {
-                println!("{} {}", "[-] skipping make directory '{}'".yellow(), type_directory.display())
+        let type_directory_path = Path::new(&type_directory);
+
+        if do_work && !type_directory_path.exists() {
+            match fs::create_dir(type_directory_path) {
+                Ok(_) => println!("{} {}", "[+] making directory '{}'".green(), type_directory_path.display()),
+                Err(error) => println!("{} {}", "Error creating directory:".red(), error),
             }
+        } else if dry_run {
+            println!("{} {}", "[-] skipping make directory '{}'".yellow(), type_directory_path.display());
         }
 
-        // it should be getting string fixed inside guess_mime_type()
-        if mime_type != "inode_directory" {
-            let destination = type_directory.join(file_name);
+        for path in paths {
+            let file_name = path.file_name().unwrap();
+            let destination = type_directory_path.join(file_name);
+
             if do_work {
-                match fs::rename(&path, &destination) {
+                match fs::rename(path, &destination) {
                     Ok(_) => println!("{} {} => {}", "[-] moving".blue(), path.display().to_string().dimmed(), destination.display().to_string().dimmed()),
                     Err(error) => println!("{} {}", "Error moving file:".red(), error),
                 }
-            } else {
+            } else if dry_run {
                 println!(
                     "{} {} => {}",
                     "[ ] not moving".cyan(),
@@ -173,5 +181,5 @@ fn guess_mime_type(path: &Path) -> Result<String, String> {
         panic!("{} {}", "Failed to parse `file` output as UTF-8:".red(), error);
     });
 
-    Ok(mime_type.trim().replace("/", "_"))
+    Ok(mime_type.trim().to_string())
 }
