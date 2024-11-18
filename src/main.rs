@@ -41,6 +41,9 @@ fn main() {
         println!("{}", "[!] dry-run in progress, pass --do-work to organize files based on this preview".yellow());
     }
 
+    // List of excluded files
+    let excluded_files: Vec<&str> = vec![".DS_Store", "Thumbs.db", ".gitignore"];
+
     let entries = match fs::read_dir(current_dir) {
         Ok(entries) => entries,
         Err(error) => {
@@ -60,6 +63,11 @@ fn main() {
 
         let path = entry.path();
         let file_name = path.file_name().unwrap().to_str().unwrap();
+
+        if excluded_files.contains(&file_name) {
+            println!("{} {}", "[-] skipping excluded file:".red(), file_name);
+            continue;
+        }
 
         if file_name == "." || file_name == ".." {
             continue;
