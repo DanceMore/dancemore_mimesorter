@@ -100,15 +100,15 @@ fn main() {
             let destination = type_directory.join(file_name);
             if do_work {
                 match fs::rename(&path, &destination) {
-                    Ok(_) => println!("{} {} => {}", "[-] moving".blue(), path.display(), destination.display()),
+                    Ok(_) => println!("{} {} => {}", "[-] moving".blue(), path.display().to_string().dimmed(), destination.display().to_string().dimmed()),
                     Err(error) => println!("{} {}", "Error moving file:".red(), error),
                 }
             } else {
                 println!(
                     "{} {} => {}",
                     "[ ] not moving".cyan(),
-                    path.display(),
-                    destination.display()
+                    path.display().to_string().dimmed(),
+                    destination.display().to_string().dimmed()
                 );
             }
         }
