@@ -1,11 +1,6 @@
 #[cfg(test)]
 mod tests {
-use mimesorter::guess_mime_type;
-    //use dancemore_mimesorter::guess_mime_type;
-    //use super::*;
-    //use super::guess_mime_type;
-    //use guess_mime_type;
-//extern crate mimesorter;
+    use mimesorter::guess_mime_type;
     use std::path::Path;
 
     #[test]
