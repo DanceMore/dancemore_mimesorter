@@ -4,9 +4,33 @@ mod tests {
     use std::path::Path;
 
     #[test]
+    fn test_guess_mime_type_html() {
+        let path = Path::new("tests/test_files/basic.html");
+        let expected_mime_type = "text_html";
+        let mime_type = guess_mime_type(path).unwrap();
+        assert_eq!(mime_type, expected_mime_type);
+    }
+
+    #[test]
+    fn test_guess_mime_type_xml() {
+        let path = Path::new("tests/test_files/note.xml");
+        let expected_mime_type = "text_xml";
+        let mime_type = guess_mime_type(path).unwrap();
+        assert_eq!(mime_type, expected_mime_type);
+    }
+
+    #[test]
     fn test_guess_mime_type_plain() {
         let path = Path::new("tests/test_files/plaintext.txt");
         let expected_mime_type = "text_plain";
+        let mime_type = guess_mime_type(path).unwrap();
+        assert_eq!(mime_type, expected_mime_type);
+    }
+
+    #[test]
+    fn test_guess_mime_type_docx() {
+        let path = Path::new("tests/test_files/demo.docx");
+        let expected_mime_type = "application_vnd.openxmlformats-officedocument.wordprocessingml.document";
         let mime_type = guess_mime_type(path).unwrap();
         assert_eq!(mime_type, expected_mime_type);
     }
