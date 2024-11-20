@@ -27,6 +27,9 @@ jobs:
         tag=$(git rev-parse --short=8 ${{ github.sha }})
         echo "tag=${tag}" >> $GITHUB_ENV
 
+    - name: Run tests for Linux x86-64
+      run: cargo test --target x86_64-unknown-linux-gnu
+
     - name: Build for Linux x86-64
       run: |
         rustup target add x86_64-unknown-linux-gnu
@@ -64,6 +67,9 @@ jobs:
       run: |
         tag=$(git rev-parse --short=8 ${{ github.sha }})
         echo "tag=${tag}" >> $GITHUB_ENV
+
+    - name: Run tests for macOS x86-64
+      run: cargo test --target x86_64-apple-darwin
 
     - name: Build for macOS x86-64
       run: |
@@ -103,6 +109,9 @@ jobs:
         tag=$(git rev-parse --short=8 ${{ github.sha }})
         echo "tag=${tag}" >> $GITHUB_ENV
 
+    - name: Run tests for macOS ARM64
+      run: cargo test --target aarch64-apple-darwin
+
     - name: Build for macOS ARM64
       run: |
         rustup target add aarch64-apple-darwin
@@ -140,7 +149,10 @@ jobs:
       shell: powershell
       run: |
         $tag = git rev-parse --short=8 $env:GITHUB_SHA
-        Set-Content -Path $env:GITHUB_ENV -Value "tag=$tag"
+        Add-Content $env:GITHUB_ENV "tag=$tag"
+
+    - name: Run tests for Windows x86-64
+      run: cargo test --target x86_64-pc-windows-msvc
 
     - name: Build for Windows x86-64
       run: |
