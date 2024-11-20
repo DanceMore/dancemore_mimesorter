@@ -2,12 +2,13 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::Command;
 
 use clap::CommandFactory;
 use clap::Parser;
 use colored::*;
 use glob::{glob_with, MatchOptions};
+
+use mimesorter::guess_mime_type;
 
 #[derive(Parser, Debug)]
 #[command(name = "mimesorter", author, version, about = "sort your files by MIME type", long_about = None)]
@@ -126,8 +127,7 @@ fn main() {
 
     // Create directories and move files based on collected data
     for (mime_type, paths) in &files_by_mime_type {
-        let type_directory = mime_type.replace("/", "_");
-        let type_directory_path = Path::new(&type_directory);
+        let type_directory_path = Path::new(mime_type);
 
         if do_work && !type_directory_path.exists() {
             match fs::create_dir(type_directory_path) {
@@ -157,29 +157,4 @@ fn main() {
             }
         }
     }
-}
-
-fn guess_mime_type(path: &Path) -> Result<String, String> {
-    let output = Command::new("file")
-        .arg("-b")
-        .arg("--mime-type")
-        .arg(path)
-        .output()
-        .unwrap_or_else(|error| {
-            panic!("{} {}", "Failed to run `file` command:".red(), error);
-        });
-
-    if !output.status.success() {
-        return Err(format!(
-            "{} {}",
-            "`file` command exited with error code:".red(),
-            output.status
-        ));
-    }
-
-    let mime_type = String::from_utf8(output.stdout).unwrap_or_else(|error| {
-        panic!("{} {}", "Failed to parse `file` output as UTF-8:".red(), error);
-    });
-
-    Ok(mime_type.trim().to_string())
 }
