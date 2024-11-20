@@ -41,6 +41,14 @@ use mimesorter::guess_mime_type;
     }
 
     #[test]
+    fn test_guess_mime_type_ogg() {
+        let path = Path::new("tests/test_files/Clock_ticking.ogg");
+        let expected_mime_type = "video_ogg";
+        let mime_type = guess_mime_type(path).unwrap();
+        assert_eq!(mime_type, expected_mime_type);
+    }
+
+    #[test]
     fn test_guess_mime_type_wav() {
         let path = Path::new("tests/test_files/amen-break.wav");
         let expected_mime_type = "audio_x-wav";
