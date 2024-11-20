@@ -57,6 +57,7 @@ fn organize_files(
     let mut files_by_mime_type: HashMap<String, Vec<PathBuf>> = HashMap::new();
 
     // List of excluded files and patterns
+    // rustfmt::skip
     let excluded_patterns: Vec<&str> = vec![
         ".DS_Store", "._*",  // macOS
         "Thumbs.db", "desktop.ini", "$RECYCLE.BIN",  // Windows
