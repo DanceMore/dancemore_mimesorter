@@ -35,14 +35,21 @@ fn main() {
 
     // snark off about the impossible
     if dry_run && do_work {
-        eprintln!("{}", "those arguments are mutually exclusive and I think you knew that.\n".red());
+        eprintln!(
+            "{}",
+            "those arguments are mutually exclusive and I think you knew that.\n".red()
+        );
         let mut cmd = Cli::command();
         let _ = cmd.print_help();
         return;
     }
 
     if dry_run {
-        println!("{}", "[!] dry-run in progress, pass --do-work to organize files based on this preview".yellow());
+        println!(
+            "{}",
+            "[!] dry-run in progress, pass --do-work to organize files based on this preview"
+                .yellow()
+        );
     }
 
     let entries = fs::read_dir(current_dir);
@@ -57,7 +64,7 @@ fn organize_files(
     let mut files_by_mime_type: HashMap<String, Vec<PathBuf>> = HashMap::new();
 
     // List of excluded files and patterns
-    // rustfmt::skip
+    #[rustfmt::skip]
     let excluded_patterns: Vec<&str> = vec![
         ".DS_Store", "._*",  // macOS
         "Thumbs.db", "desktop.ini", "$RECYCLE.BIN",  // Windows
