@@ -1,7 +1,6 @@
 use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
+use std::fs::{self, ReadDir};
+use std::path::{Path, PathBuf};
 
 use clap::CommandFactory;
 use clap::Parser;
@@ -34,6 +33,7 @@ fn main() {
         return;
     }
 
+    // snark off about the impossible
     if dry_run && do_work {
         eprintln!("{}", "those arguments are mutually exclusive and I think you knew that.\n".red());
         let mut cmd = Cli::command();
@@ -44,6 +44,17 @@ fn main() {
     if dry_run {
         println!("{}", "[!] dry-run in progress, pass --do-work to organize files based on this preview".yellow());
     }
+
+    let entries = fs::read_dir(current_dir);
+    organize_files(entries, dry_run, do_work);
+}
+
+fn organize_files(
+    entries: Result<ReadDir, std::io::Error>,
+    dry_run: bool,
+    do_work: bool,
+) -> HashMap<String, Vec<PathBuf>> {
+    let mut files_by_mime_type: HashMap<String, Vec<PathBuf>> = HashMap::new();
 
     // List of excluded files and patterns
     let excluded_patterns: Vec<&str> = vec![
@@ -64,90 +75,90 @@ fn main() {
         require_literal_leading_dot: false,
     };
 
-    let entries = match fs::read_dir(current_dir) {
-        Ok(entries) => entries,
-        Err(error) => {
-            println!("{} {}", "[!] Error reading directory:".red(), error);
-            return;
-        }
-    };
+    match entries {
+        Ok(entries) => {
+            for entry in entries {
+                match entry {
+                    Ok(entry) => {
+                        let path = entry.path();
+                        let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
 
-    // HashMap to store files by MIME type
-    let mut files_by_mime_type: HashMap<String, Vec<PathBuf>> = HashMap::new();
+                        if file_name == "." || file_name == ".." {
+                            continue;
+                        }
 
-    for entry in entries {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) => {
-                println!("{} {}", "[!] Error processing entry:".red(), error);
-                continue;
+                        let is_excluded = excluded_patterns.iter().any(|pattern| {
+                            glob_with(&format!("./{}", pattern), match_options.clone())
+                                .map_or(false, |mut iter| iter.any(|g| g.unwrap() == path))
+                        });
+
+                        if is_excluded || entry.file_type().map_or(true, |ft| ft.is_dir()) {
+                            continue;
+                        }
+
+                        let mime_type =
+                            guess_mime_type(&path).unwrap_or_else(|_| "unknown".to_string());
+
+                        if mime_type != "inode_directory" {
+                            files_by_mime_type
+                                .entry(mime_type)
+                                .or_insert_with(Vec::new)
+                                .push(path);
+                        }
+                    }
+                    Err(error) => println!("{} {}", "[!] Error processing entry:".red(), error),
+                }
             }
-        };
-
-        let path = entry.path();
-        let file_name = path.file_name().unwrap().to_str().unwrap();
-
-        // Check if the file name matches any excluded pattern
-        let is_excluded = excluded_patterns.iter().any(|pattern| {
-            glob_with(&format!("./{}", pattern), match_options.clone())
-                .map_or(false, |mut iter| iter.any(|g| g.unwrap() == path))
-        });
-
-        if is_excluded {
-            println!("{} {}", "[-] skipping excluded file:".red(), file_name);
-            continue;
         }
-
-        if file_name == "." || file_name == ".." {
-            continue;
-        }
-
-        // don't process directories.
-        // they are Named already (and thus semi sorted)
-        // we are sorting files only.
-        if entry.file_type().unwrap().is_dir() {
-            println!("{} {}", "[-] skipping directory:".red(), path.display());
-            continue;
-        }
-
-        let mime_type = match guess_mime_type(&path) {
-            Ok(mime_type) => mime_type,
-            Err(error) => {
-                println!("{} {}", "Error guessing MIME type:".red(), error);
-                continue;
-            }
-        };
-
-        // Collect files by their MIME type
-        if mime_type != "inode_directory" {
-            let files = files_by_mime_type.entry(mime_type).or_insert_with(Vec::new);
-            files.push(path);
-        }
+        Err(error) => println!("{} {}", "[!] Error reading directory:".red(), error),
     }
 
-    // Create directories and move files based on collected data
-    for (mime_type, paths) in &files_by_mime_type {
-        let type_directory_path = Path::new(mime_type);
+    if do_work {
+        // Create directories and move files based on collected data
+        for (mime_type, paths) in &files_by_mime_type {
+            let type_directory_path = Path::new(mime_type);
 
-        if do_work && !type_directory_path.exists() {
-            match fs::create_dir(type_directory_path) {
-                Ok(_) => println!("{} {}", "[+] making directory '{}'".green(), type_directory_path.display()),
-                Err(error) => println!("{} {}", "Error creating directory:".red(), error),
+            if !type_directory_path.exists() {
+                match fs::create_dir(type_directory_path) {
+                    Ok(_) => println!(
+                        "{} {}",
+                        "[+] making directory '{}'".green(),
+                        type_directory_path.display()
+                    ),
+                    Err(error) => println!("{} {}", "Error creating directory:".red(), error),
+                }
             }
-        } else if dry_run {
-            println!("{} {}", "[-] skipping make directory '{}'".yellow(), type_directory_path.display());
-        }
 
-        for path in paths {
-            let file_name = path.file_name().unwrap();
-            let destination = type_directory_path.join(file_name);
+            for path in paths {
+                let file_name = path.file_name().unwrap();
+                let destination = type_directory_path.join(file_name);
 
-            if do_work {
                 match fs::rename(path, &destination) {
-                    Ok(_) => println!("{} {} => {}", "[-] moving".blue(), path.display().to_string().dimmed(), destination.display().to_string().dimmed()),
+                    Ok(_) => println!(
+                        "{} {} => {}",
+                        "[-] moving".blue(),
+                        path.display().to_string().dimmed(),
+                        destination.display().to_string().dimmed()
+                    ),
                     Err(error) => println!("{} {}", "Error moving file:".red(), error),
                 }
-            } else if dry_run {
+            }
+        }
+    } else if dry_run {
+        // Print preview of what will be done
+        for (mime_type, paths) in &files_by_mime_type {
+            let type_directory_path = Path::new(mime_type);
+
+            println!(
+                "{} {}",
+                "[-] skipping make directory '{}'".yellow(),
+                type_directory_path.display()
+            );
+
+            for path in paths {
+                let file_name = path.file_name().unwrap();
+                let destination = type_directory_path.join(file_name);
+
                 println!(
                     "{} {} => {}",
                     "[ ] not moving".cyan(),
@@ -157,4 +168,6 @@ fn main() {
             }
         }
     }
+
+    files_by_mime_type
 }
