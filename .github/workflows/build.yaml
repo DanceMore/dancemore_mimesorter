@@ -53,13 +53,6 @@ jobs:
           git commit -m "Bump version to ${{ steps.set_version.outputs.version }}"
           git push
 
-      - name: Generate Changelog
-        run: |
-          echo "# Release Notes for ${{ steps.set_version.outputs.version }}" > changelog.txt
-          echo "" >> changelog.txt
-          echo "## Changes" >> changelog.txt
-          git log --pretty=format:"* %s" $(git describe --tags --abbrev=0 2>/dev/null || echo HEAD~10)..HEAD >> changelog.txt
-
   build-linux:
     needs: create-release
     runs-on: ubuntu-latest
@@ -97,7 +90,6 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: mimesorter-linux-x86_64
-        body_path: changelog.txt
         tag_name: ${{ needs.create-release.outputs.version_without_v }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
