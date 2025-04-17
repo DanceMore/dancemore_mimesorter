@@ -6,12 +6,69 @@ on:
       - main
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set_version.outputs.version }}
+      version_without_v: ${{ steps.set_version.outputs.version_without_v }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for proper versioning
+
+      - name: Set version
+        id: set_version
+        run: |
+          # Extract current version from Cargo.toml
+          current_version=$(grep -m 1 'version = "[0-9]*\.[0-9]*\.[0-9]*"' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "Current version: $current_version"
+          
+          # Check if commit message contains version bump indicators
+          commit_msg=$(git log -1 --pretty=%B)
+          if [[ "$commit_msg" == *"#major"* ]]; then
+            # Increment the major version
+            new_version=$(echo $current_version | awk -F. '{print $1+1".0.0"}')
+          elif [[ "$commit_msg" == *"#minor"* ]]; then
+            # Increment the minor version
+            new_version=$(echo $current_version | awk -F. '{print $1"."$2+1".0"}')
+          else
+            # Increment the patch version by default
+            new_version=$(echo $current_version | awk -F. '{print $1"."$2"."$3+1}')
+          fi
+          
+          echo "New version: $new_version"
+          
+          # Update version in Cargo.toml
+          sed -i "s/^version = \"[0-9]*\.[0-9]*\.[0-9]*\"/version = \"$new_version\"/" Cargo.toml
+          
+          # Set outputs for later steps
+          echo "version=v$new_version" >> $GITHUB_OUTPUT
+          echo "version_without_v=$new_version" >> $GITHUB_OUTPUT
+
+      - name: Commit version update
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add Cargo.toml
+          git commit -m "Bump version to ${{ steps.set_version.outputs.version }}"
+          git push
+
+      - name: Generate Changelog
+        run: |
+          echo "# Release Notes for ${{ steps.set_version.outputs.version }}" > changelog.txt
+          echo "" >> changelog.txt
+          echo "## Changes" >> changelog.txt
+          git log --pretty=format:"* %s" $(git describe --tags --abbrev=0 2>/dev/null || echo HEAD~10)..HEAD >> changelog.txt
+
   build-linux:
+    needs: create-release
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        ref: main  # Ensure we're using the updated code with version bump
 
     - name: Setup Rust
       uses: actions-rs/toolchain@v1
@@ -20,12 +77,6 @@ jobs:
 
     - name: Install OpenSSL Development Packages
       run: sudo apt-get update && sudo apt-get install -y libssl-dev
-
-    - name: Set release tag
-      id: set_tag
-      run: |
-        tag=$(git rev-parse --short=8 ${{ github.sha }})
-        echo "tag=${tag}" >> $GITHUB_ENV
 
     - name: Run tests for Linux x86-64
       run: cargo test --target x86_64-unknown-linux-gnu
@@ -36,37 +87,35 @@ jobs:
         cargo build --release --target x86_64-unknown-linux-gnu
         cp target/x86_64-unknown-linux-gnu/release/mimesorter ./mimesorter-linux-x86_64
 
-    - name: Generate Changelog
-      run: echo "# Release Notes" > changelog.txt  # Replace this with your actual changelog content
-
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      if: ${{ github.ref == 'refs/heads/main' }}
+    - name: Upload binaries
+      uses: actions/upload-artifact@v4
       with:
-        files: |
-          changelog.txt
-          mimesorter-linux-x86_64
+        name: mimesorter-linux-x86_64
+        path: mimesorter-linux-x86_64
+
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v1
+      with:
+        files: mimesorter-linux-x86_64
         body_path: changelog.txt
-        tag_name: ${{ env.tag }}
-        token: ${{ secrets.GITHUB_TOKEN }}
+        tag_name: ${{ needs.create-release.outputs.version_without_v }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos-x86-64:
+    needs: create-release
     runs-on: macOS-13
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        ref: main
 
     - name: Setup Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-
-    - name: Set release tag
-      id: set_tag
-      run: |
-        tag=$(git rev-parse --short=8 ${{ github.sha }})
-        echo "tag=${tag}" >> $GITHUB_ENV
 
     - name: Run tests for macOS x86-64
       run: cargo test --target x86_64-apple-darwin
@@ -77,37 +126,34 @@ jobs:
         cargo build --release --target x86_64-apple-darwin
         cp target/x86_64-apple-darwin/release/mimesorter ./mimesorter-darwin-x86_64
 
-    - name: Generate Changelog
-      run: echo "# Release Notes" > changelog.txt  # Replace this with your actual changelog content
-
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      if: ${{ github.ref == 'refs/heads/main' }}
+    - name: Upload binaries
+      uses: actions/upload-artifact@v4
       with:
-        files: |
-          changelog.txt
-          mimesorter-darwin-x86_64
-        body_path: changelog.txt
-        tag_name: ${{ env.tag }}
-        token: ${{ secrets.GITHUB_TOKEN }}
+        name: mimesorter-darwin-x86_64
+        path: mimesorter-darwin-x86_64
+
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v1
+      with:
+        files: mimesorter-darwin-x86_64
+        tag_name: ${{ needs.create-release.outputs.version_without_v }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos-arm64:
+    needs: create-release
     runs-on: macos-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        ref: main
 
     - name: Setup Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
-
-    - name: Set release tag
-      id: set_tag
-      run: |
-        tag=$(git rev-parse --short=8 ${{ github.sha }})
-        echo "tag=${tag}" >> $GITHUB_ENV
 
     - name: Run tests for macOS ARM64
       run: cargo test --target aarch64-apple-darwin
@@ -118,38 +164,34 @@ jobs:
         cargo build --release --target aarch64-apple-darwin
         cp target/aarch64-apple-darwin/release/mimesorter ./mimesorter-darwin-arm64
 
-    - name: Generate Changelog
-      run: echo "# Release Notes" > changelog.txt  # Replace this with your actual changelog content
-
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      if: ${{ github.ref == 'refs/heads/main' }}
+    - name: Upload binaries
+      uses: actions/upload-artifact@v4
       with:
-        files: |
-          changelog.txt
-          mimesorter-darwin-arm64
-        body_path: changelog.txt
-        tag_name: ${{ env.tag }}
-        token: ${{ secrets.GITHUB_TOKEN }}
+        name: mimesorter-darwin-arm64
+        path: mimesorter-darwin-arm64
+
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v1
+      with:
+        files: mimesorter-darwin-arm64
+        tag_name: ${{ needs.create-release.outputs.version_without_v }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows:
+    needs: create-release
     runs-on: windows-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+      with:
+        ref: main
 
     - name: Setup Rust
       uses: actions-rs/toolchain@v1
       with:
         toolchain: stable-msvc
-
-    - name: Set release tag
-      id: set_tag
-      shell: powershell
-      run: |
-        $tag = git rev-parse --short=8 $env:GITHUB_SHA
-        Add-Content $env:GITHUB_ENV "tag=$tag"
 
     - name: Run tests for Windows x86-64
       run: cargo test --target x86_64-pc-windows-msvc
@@ -157,19 +199,18 @@ jobs:
     - name: Build for Windows x86-64
       run: |
         cargo build --release --target x86_64-pc-windows-msvc
-        ls target/x86_64-pc-windows-msvc/release/
         cp target/x86_64-pc-windows-msvc/release/mimesorter.exe ./mimesorter-windows-x86_64.exe
 
-    - name: Generate Changelog
-      run: echo "# Release Notes" > changelog.txt  # Replace this with your actual changelog content
-
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      if: ${{ github.ref == 'refs/heads/main' && !cancelled() }}
+    - name: Upload binaries
+      uses: actions/upload-artifact@v4
       with:
-        files: |
-          changelog.txt
-          mimesorter-windows-x86_64.exe
-        body_path: changelog.txt
-        tag_name: ${{ env.tag }}
-        token: ${{ secrets.GITHUB_TOKEN }}
+        name: mimesorter-windows-x86_64
+        path: mimesorter-windows-x86_64.exe
+
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v1
+      with:
+        files: mimesorter-windows-x86_64.exe
+        tag_name: ${{ needs.create-release.outputs.version_without_v }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
